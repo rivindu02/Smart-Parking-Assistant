@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parking Assistant</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+    
+        body {
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 0;
+            position: relative;
+        }
+    
+        header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            padding: 10px 20px;
+            z-index: 1001;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+    
+        h1 {
+            font-size: 2.5rem;
+            margin: 0;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            letter-spacing: 1px;
+            font-size: 1.5rem;
+        }
+    
+        #userInfo {
+            font-size: 1.1rem;
+            opacity: 0.8;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+        }
+    
+        #datetime {
+            font-size: 1.2rem;
+            opacity: 0.8;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+        }
+    
+        #loginButton {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 20px;
+            background: #fff;
+            color: #1e3c72;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s ease, color 0.3s ease;
+            margin-left: 10px;
+        }
+    
+        #loginButton:hover {
+            background: #1e3c72;
+            color: #fff;
+        }
+    
+        #parkingMap {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(120px, 1fr));
+            gap: 15px;
+            max-width: 1200px;
+            width: 100%;
+            margin-top: 80px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    
+        .spot {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            transition: transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
+            aspect-ratio: 1 / 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+    
+        .spot:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+        }
+    
+        .available {
+            background: rgba(72, 187, 120, 0.9);
+        }
+    
+        .occupied {
+            background: rgba(239, 68, 68, 0.9);
+        }
+    
+        .reserved {
+            background: rgba(245, 158, 11, 0.9);
+        }
+    
+        .spot::before {
+            content: '';
+            position: absolute;
+            top: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 20px;
+            height: 2px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 1px;
+        }
+    
+        .spot::after {
+            content: '';
+            position: absolute;
+            bottom: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 20px;
+            height: 2px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 1px;
+        }
+    
+        button {
+            margin-top: 5px;
+            padding: 6px 12px;
+            border: none;
+            border-radius: 20px;
+            background: #fff;
+            color: #1e3c72;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s ease, color 0.3s ease, opacity 0.3s ease;
+        }
+    
+        button:hover {
+            background: #1e3c72;
+            color: #fff;
+        }
+    
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            display: none;
+        }
+    
+        .reserve-button {
+            margin-top: 20px;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 20px;
+            background: #fff;
+            color: #1e3c72;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s ease, color 0.3s ease;
+        }
+    
+        .reserve-button:hover {
+            background: #1e3c72;
+            color: #fff;
+        }
+    
+        .last-updated {
+            font-size: 0.8rem;
+            opacity: 0.7;
+            margin-top: 5px;
+        }
+    
+        #reservationForm {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            max-width: 400px;
+            width: 100%;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -70%);
+            z-index: 1003;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+    
+        #reservationForm.show {
+            display: block !important;
+            opacity: 1;
+            transform: translate(-50%, -50%);
+        }
+    
+        #loginModal {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            width: 300px;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            z-index: 1004;
+            display: none;
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            border: 2px solid #1e3c72;
+        }
+    
+        #loginModal.show {
+            display: block !important;
+            opacity: 1;
+            transform: translateY(0);
+        }
+    
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1002;
+        }
+    
+        .modal-overlay.show {
+            display: block !important;
+        }
+    
+        #loginModal h2 {
+            color: #fff;
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            text-align: center;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+        }
+    
+        #loginModal label {
+            color: #fff;
+            font-weight: 500;
+            margin-bottom: 5px;
+            font-size: 0.95rem;
+        }
+    
+        #loginModal input {
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            width: 100%;
+            box-sizing: border-box;
+            font-size: 0.95rem;
+            margin-bottom: 10px;
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+            transition: border-color 0.3s ease;
+        }
+    
+        #loginModal input:focus {
+            outline: none;
+            border-color: #fff;
+            box-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
+        }
+    
+        #loginModal button {
+            width: 100%;
+            padding: 8px;
+            font-size: 0.95rem;
+            margin-top: 10px;
+            border-radius: 20px;
+            background: #fff;
+            color: #1e3c72;
+            border: none;
+            cursor: pointer;
+            transition: background 0.3s ease, color 0.3s ease;
+        }
+    
+        #loginModal button:hover {
+            background: #1e3c72;
+            color: #fff;
+        }
+    
+        #loginModal button[type="button"] {
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+        }
+    
+        #loginModal button[type="button"]:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+    
+        #reservationForm h2 {
+            color: #fff;
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            text-align: center;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+        }
+    
+        #reservationForm label, #reservationForm input, #reservationForm button {
+            display: block;
+            margin: 8px 0;
+        }
+    
+        #reservationForm label {
+            color: #fff;
+            font-weight: 500;
+            margin-bottom: 5px;
+            font-size: 0.95rem;
+        }
+    
+        #reservationForm input {
+            padding: 6px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            width: 100%;
+            box-sizing: border-box;
+            font-size: 0.9rem;
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+        }
+    
+        #reservationForm input:focus {
+            outline: none;
+            border-color: #fff;
+            box-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
+        }
+    
+        #reservationForm button {
+            width: 100%;
+            padding: 8px;
+            font-size: 0.95rem;
+            border-radius: 20px;
+            background: #fff;
+            color: #1e3c72;
+            border: none;
+            cursor: pointer;
+            transition: background 0.3s ease, color 0.3s ease;
+        }
+    
+        #reservationForm button:hover {
+            background: #1e3c72;
+            color: #fff;
+        }
+    
+        @media (max-width: 600px) {
+            h1 { font-size: 1.5rem; }
+            #userInfo, #datetime { font-size: 0.9rem; }
+            #loginButton { padding: 6px 12px; font-size: 0.8rem; }
+            #parkingMap { margin-top: 60px; grid-template-columns: repeat(3, minmax(100px, 1fr)); gap: 10px; padding: 15px; }
+            .spot { padding: 10px; }
+            .last-updated { font-size: 0.7rem; }
+            #reservationForm { padding: 15px; max-width: 300px; }
+            #loginModal {
+                width: 260px;
+                padding: 15px;
+                top: 60px;
+                right: 15px;
+            }
+            #loginModal h2 { font-size: 1.3rem; }
+            #loginModal input, #loginModal button { font-size: 0.9rem; }
+            #reservationForm input, #reservationForm button { font-size: 0.9rem; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Parking Assistant</h1>
+        <div>
+            <div id="datetime"></div>
+            {% if is_admin %}
+                <div id="userInfo">Logged in as: Admin | <a href="{{ url_for('logout') }}" style="color: #fff; text-decoration: underline;">Logout</a></div>
+            {% else %}
+                <div id="userInfo">Guest User</div>
+            {% endif %}
+            <button id="loginButton">Admin Login</button>
+        </div>
+    </header>
+    <div id="parkingMap">
+        {% for spot in spots %}
+            <div class="spot {{ 'available' if spot[1] == 'available' else 'occupied' if spot[1] == 'occupied' else 'reserved' }}"
+                 data-spot-id="{{ spot[0] }}"
+                 data-latitude="{{ spot[4] }}"
+                 data-longitude="{{ spot[5] }}"
+                 data-user-id="{{ spot[6] if spot[6] else 'null' }}">
+                <div>Spot {{ spot[0] }}</div>
+                <div>{{ spot[1] | capitalize }}</div>
+                <div class="last-updated">Last Updated: {{ spot[3] if spot[3] else 'Never' }}</div>
+                {% if spot[1] == 'available' %}
+                    <button onclick="selectSpot({{ spot[0] }})">Select</button>
+                {% endif %}
+                {% if is_admin %}
+                    {% if spot[1] == 'occupied' %}
+                        <button onclick="resetSpot({{ spot[0] }})">Reset</button>
+                        <button onclick="goToSpot({{ spot[0] }})" style="margin-top: 5px;">Go To</button>
+                    {% elif spot[1] == 'reserved' %}
+                        <button onclick="cancelReservation({{ spot[0] }})">Cancel Reservation</button>
+                        <button onclick="goToSpot({{ spot[0] }})" style="margin-top: 5px;">Go To</button>
+                    {% endif %}
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+
+    <div id="reservationForm" style="display: none;">
+        <h2>Reserve a Spot</h2>
+        <label for="spotId">Spot Number:</label>
+        <input type="number" id="spotId" min="1" max="20" required>
+        <label for="startTime">Start Time (YYYY-MM-DD HH:MM):</label>
+        <input type="text" id="startTime" placeholder="2025-03-05 14:30" required>
+        <label for="endTime">End Time (YYYY-MM-DD HH:MM):</label>
+        <input type="text" id="endTime" placeholder="2025-03-05 15:30" required>
+        <button onclick="reserveSpot()">Reserve</button>
+        <button onclick="hideReservationForm()">Cancel</button>
+    </div>
+
+    <div class="modal-overlay" id="modalOverlay"></div>
+    <div id="loginModal" style="display: none;">
+        <h2>Admin Login</h2>
+        <form id="loginForm">
+            <label for="username">Username:</label>
+            <input type="text" id="username" name="username" required>
+            <label for="password">Password:</label>
+            <input type="password" id="password" name="password" required>
+            <button type="submit">Login</button>
+            <button type="button" onclick="hideLoginModal()">Cancel</button>
+        </form>
+    </div>
+
+    <script>
+        // Real-time clock
+        function updateClock() {
+            const now = new Date();
+            const dateTimeString = now.toLocaleString('en-US', {
+                dateStyle: 'medium',
+                timeStyle: 'short'
+            });
+            document.getElementById('datetime').textContent = `Current Date & Time: ${dateTimeString}`;
+        }
+        updateClock();
+        setInterval(updateClock, 1000);
+
+        // Fetch the current user's ID (or guest UUID)
+        async function getCurrentUserId() {
+            try {
+                const response = await fetch('/get_user_id');
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const data = await response.json();
+                return data.user_id;
+            } catch (error) {
+                console.error('Error fetching user ID:', error);
+                return null;
+            }
+        }
+
+        // Real-time spot updates
+        async function updateSpots() {
+            try {
+                const response = await fetch('/get_spots');
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const spots = await response.json();
+                const parkingMap = document.getElementById('parkingMap');
+                const isAdmin = {{ is_admin|tojson }};
+                const currentUserId = await getCurrentUserId();
+                console.log('Current user ID:', currentUserId);
+                parkingMap.innerHTML = '';
+                const userHasSpot = spots.some(spot => spot.user_id === currentUserId && spot.status === 'occupied');
+                spots.forEach(spot => {
+                    const spotElement = document.createElement('div');
+                    spotElement.className = `spot ${spot.status === 'available' ? 'available' : spot.status === 'occupied' ? 'occupied' : 'reserved'}`;
+                    spotElement.dataset.spotId = spot.spot_id;
+                    spotElement.dataset.latitude = spot.latitude;
+                    spotElement.dataset.longitude = spot.longitude;
+                    spotElement.dataset.userId = spot.user_id || 'null';
+                    spotElement.innerHTML = `
+                        <div>Spot ${spot.spot_id}</div>
+                        <div>${spot.status.charAt(0).toUpperCase() + spot.status.slice(1)}</div>
+                        <div class="last-updated">Last Updated: ${spot.last_updated || 'Never'}</div>
+                    `;
+                    if (spot.status === 'available' && (!userHasSpot || isAdmin)) {
+                        // Show "Select" button only if user has no spot or is admin
+                        const selectButton = document.createElement('button');
+                        selectButton.textContent = 'Select';
+                        selectButton.onclick = () => selectSpot(spot.spot_id);
+                        spotElement.appendChild(selectButton);
+                    } else if (spot.user_id === currentUserId && spot.status === 'occupied') {
+                        // Show "Go To" and "Cancel" buttons for the user's selected spot
+                        const cancelButton = document.createElement('button');
+                        cancelButton.textContent = 'Cancel';
+                        cancelButton.onclick = () => cancelUserSpot(spot.spot_id);
+                        spotElement.appendChild(cancelButton);
+                        const goToButton = document.createElement('button');
+                        goToButton.textContent = 'Go To';
+                        goToButton.style.marginTop = '5px';
+                        goToButton.onclick = () => goToSpot(spot.spot_id);
+                        spotElement.appendChild(goToButton);
+                    }
+                    if (isAdmin) {
+                        if (spot.status === 'occupied' && spot.user_id !== currentUserId) {
+                            const resetButton = document.createElement('button');
+                            resetButton.textContent = 'Reset';
+                            resetButton.onclick = () => resetSpot(spot.spot_id);
+                            spotElement.appendChild(resetButton);
+                            const goToButton = document.createElement('button');
+                            goToButton.textContent = 'Go To';
+                            goToButton.style.marginTop = '5px';
+                            goToButton.onclick = () => goToSpot(spot.spot_id);
+                            spotElement.appendChild(goToButton);
+                        } else if (spot.status === 'reserved') {
+                            const cancelButton = document.createElement('button');
+                            cancelButton.textContent = 'Cancel Reservation';
+                            cancelButton.onclick = () => cancelReservation(spot.spot_id);
+                            spotElement.appendChild(cancelButton);
+                            const goToButton = document.createElement('button');
+                            goToButton.textContent = 'Go To';
+                            goToButton.style.marginTop = '5px';
+                            goToButton.onclick = () => goToSpot(spot.spot_id);
+                            spotElement.appendChild(goToButton);
+                        }
+                    }
+                    parkingMap.appendChild(spotElement);
+                });
+            } catch (error) {
+                console.error('Error updating spots:', error);
+                alert('Failed to load parking spots. Check the console for details.');
+            }
+        }
+
+        // Modal functions
+        function showLoginModal() {
+            const modal = document.getElementById('loginModal');
+            const overlay = document.getElementById('modalOverlay');
+            console.log('Attempting to show login modal. Modal element:', modal);
+            console.log('Overlay element:', overlay);
+            if (modal && overlay) {
+                modal.classList.add('show');
+                overlay.classList.add('show');
+                console.log('Login modal class added. Current classes:', modal.className);
+                console.log('Overlay class added. Current classes:', overlay.className);
+                console.log('Modal display style:', window.getComputedStyle(modal).display);
+            } else {
+                console.error('Login modal or overlay element not found in DOM');
+            }
+        }
+
+        function hideLoginModal() {
+            const modal = document.getElementById('loginModal');
+            const overlay = document.getElementById('modalOverlay');
+            console.log('Attempting to hide login modal. Modal element:', modal);
+            console.log('Overlay element:', overlay);
+            if (modal && overlay) {
+                modal.classList.remove('show');
+                overlay.classList.remove('show');
+                document.getElementById('loginForm').reset();
+                console.log('Login modal class removed. Current classes:', modal.className);
+                console.log('Overlay class removed. Current classes:', overlay.className);
+            } else {
+                console.error('Login modal or overlay element not found in DOM');
+            }
+        }
+
+        function showReservationForm() {
+            const form = document.getElementById('reservationForm');
+            const overlay = document.getElementById('modalOverlay');
+            console.log('Showing reservation form. Form element:', form);
+            console.log('Overlay element:', overlay);
+            if (form && overlay) {
+                form.classList.add('show');
+                overlay.classList.add('show');
+                console.log('Reservation form class added. Current classes:', form.className);
+                console.log('Overlay class added. Current classes:', overlay.className);
+                console.log('Form display style:', window.getComputedStyle(form).display);
+            } else {
+                console.error('Reservation form or overlay element not found in DOM');
+            }
+        }
+
+        function hideReservationForm() {
+            const form = document.getElementById('reservationForm');
+            const overlay = document.getElementById('modalOverlay');
+            console.log('Hiding reservation form. Form element:', form);
+            console.log('Overlay element:', overlay);
+            if (form && overlay) {
+                form.classList.remove('show');
+                overlay.classList.remove('show');
+                console.log('Reservation form class removed. Current classes:', form.className);
+                console.log('Overlay class removed. Current classes:', overlay.className);
+            } else {
+                console.error('Reservation form or overlay element not found in DOM');
+            }
+        }
+
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOM fully loaded');
+            updateSpots();
+            setInterval(updateSpots, 5000);
+
+            const loginButton = document.getElementById('loginButton');
+            console.log('Login button element:', loginButton);
+            if (loginButton) {
+                loginButton.addEventListener('click', () => {
+                    console.log('Admin Login button clicked');
+                    showLoginModal();
+                });
+            } else {
+                console.error('Login button element not found in DOM');
+            }
+
+            const reserveButton = document.createElement('button');
+            reserveButton.textContent = 'Reserve a Spot';
+            reserveButton.className = 'reserve-button';
+            reserveButton.addEventListener('click', () => {
+                console.log('Reserve a Spot button clicked');
+                showReservationForm();
+                console.log('Attempting to show reservation form');
+            });
+            document.getElementById('parkingMap').parentNode.appendChild(reserveButton);
+
+            const loginForm = document.getElementById('loginForm');
+            if (loginForm) {
+                loginForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    console.log('Login form submitted');
+                    const username = document.getElementById('username').value;
+                    const password = document.getElementById('password').value;
+                    try {
+                        const response = await fetch('/login', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`
+                        });
+                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                        const data = await response.json();
+                        if (data.success) {
+                            console.log('Login successful');
+                            hideLoginModal();
+                            location.reload();
+                        } else {
+                            alert(data.message);
+                            console.log('Login failed: ' + data.message);
+                        }
+                    } catch (error) {
+                        console.error('Error during login:', error);
+                        alert('Client-side error during login. Check the console.');
+                    }
+                });
+            } else {
+                console.error('Login form element not found in DOM');
+            }
+        });
+
+        function selectSpot(spotId) {
+            fetch('/update_spot', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `spot_id=${spotId}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                if (data.message.includes('occupied')) updateSpots();
+            })
+            .catch(error => {
+                console.error('Error selecting spot:', error);
+            });
+        }
+
+        function resetSpot(spotId) {
+            fetch('/reset_spot', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `spot_id=${spotId}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                if (data.message.includes('available')) updateSpots();
+            })
+            .catch(error => {
+                console.error('Error resetting spot:', error);
+            });
+        }
+
+        function cancelUserSpot(spotId) {
+            fetch('/cancel_user_spot', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `spot_id=${spotId}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                if (data.message.includes('cancelled')) updateSpots();
+            })
+            .catch(error => {
+                console.error('Error cancelling spot:', error);
+            });
+        }
+
+        function reserveSpot() {
+            const spotId = document.getElementById('spotId').value;
+            const startTime = document.getElementById('startTime').value;
+            const endTime = document.getElementById('endTime').value;
+
+            fetch('/reserve_spot', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `spot_id=${spotId}&start_time=${startTime}&end_time=${endTime}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                if (data.message.includes('reserved')) {
+                    updateSpots();
+                    hideReservationForm();
+                }
+            })
+            .catch(error => {
+                console.error('Error reserving spot:', error);
+            });
+        }
+
+        function cancelReservation(spotId) {
+            fetch('/cancel_reservation', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `spot_id=${spotId}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                if (data.message.includes('cancelled')) updateSpots();
+            })
+            .catch(error => {
+                console.error('Error cancelling reservation:', error);
+            });
+        }
+
+        function goToSpot(spotId) {
+            const spotElement = document.querySelector(`[data-spot-id="${spotId}"]`);
+            const latitude = spotElement.dataset.latitude;
+            const longitude = spotElement.dataset.longitude;
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const userLat = position.coords.latitude;
+                        const userLon = position.coords.longitude;
+                        const url = `https://www.google.com/maps/dir/?api=1&origin=${userLat},${userLon}&destination=${latitude},${longitude}&travelmode=driving`;
+                        window.open(url, '_blank');
+                    },
+                    (error) => {
+                        alert('Unable to get your location. Using default location.');
+                        const defaultUrl = `https://www.google.com/maps/dir/?api=1&origin=37.7749,-122.4194&destination=${latitude},${longitude}&travelmode=driving`;
+                        window.open(defaultUrl, '_blank');
+                    }
+                );
+            } else {
+                alert('Geolocation not supported. Using default location.');
+                const defaultUrl = `https://www.google.com/maps/dir/?api=1&origin=37.7749,-122.4194&destination=${latitude},${longitude}&travelmode=driving`;
+                window.open(defaultUrl, '_blank');
+            }
+        }
+    </script>
+</body>
+</html>
