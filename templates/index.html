@@ -484,16 +484,18 @@
             try {
                 const response = await fetch('/get_spots');
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                const spots = await response.json();
+                const data = await response.json();
+                const spots = data.spots;
+                const currentUserId = data.effective_user_id;
+                console.log('Current user ID:', currentUserId); // Debug current user
                 const parkingMap = document.getElementById('parkingMap');
                 const isAdmin = {{ is_admin|tojson }};
-                const currentUserId = await getCurrentUserId();
-                console.log('Current user ID:', currentUserId);
+                let userHasSpot = spots.some(spot => spot.user_id === currentUserId && spot.status === 'occupied');
+                
                 parkingMap.innerHTML = '';
-                const userHasSpot = spots.some(spot => spot.user_id === currentUserId && spot.status === 'occupied');
                 spots.forEach(spot => {
                     const spotElement = document.createElement('div');
-                    spotElement.className = `spot ${spot.status === 'available' ? 'available' : spot.status === 'occupied' ? 'occupied' : 'reserved'}`;
+                    spotElement.className = `spot ${spot.status}`;
                     spotElement.dataset.spotId = spot.spot_id;
                     spotElement.dataset.latitude = spot.latitude;
                     spotElement.dataset.longitude = spot.longitude;
@@ -503,14 +505,13 @@
                         <div>${spot.status.charAt(0).toUpperCase() + spot.status.slice(1)}</div>
                         <div class="last-updated">Last Updated: ${spot.last_updated || 'Never'}</div>
                     `;
-                    if (spot.status === 'available' && (!userHasSpot || isAdmin)) {
-                        // Show "Select" button only if user has no spot or is admin
+                    
+                    if (spot.status === 'available' && !userHasSpot && currentUserId) {
                         const selectButton = document.createElement('button');
                         selectButton.textContent = 'Select';
                         selectButton.onclick = () => selectSpot(spot.spot_id);
                         spotElement.appendChild(selectButton);
-                    } else if (spot.user_id === currentUserId && spot.status === 'occupied') {
-                        // Show "Go To" and "Cancel" buttons for the user's selected spot
+                    } else if (spot.status === 'occupied' && spot.user_id === currentUserId) {
                         const cancelButton = document.createElement('button');
                         cancelButton.textContent = 'Cancel';
                         cancelButton.onclick = () => cancelUserSpot(spot.spot_id);
@@ -522,7 +523,7 @@
                         spotElement.appendChild(goToButton);
                     }
                     if (isAdmin) {
-                        if (spot.status === 'occupied' && spot.user_id !== currentUserId) {
+                        if (spot.status === 'occupied') {
                             const resetButton = document.createElement('button');
                             resetButton.textContent = 'Reset';
                             resetButton.onclick = () => resetSpot(spot.spot_id);
@@ -618,9 +619,8 @@
 
         // Event listeners
         document.addEventListener('DOMContentLoaded', () => {
-            console.log('DOM fully loaded');
             updateSpots();
-            setInterval(updateSpots, 5000);
+            setInterval(updateSpots, 1000);
 
             const loginButton = document.getElementById('loginButton');
             console.log('Login button element:', loginButton);
