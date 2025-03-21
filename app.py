@@ -4,6 +4,8 @@ import sqlite3
 import logging
 from werkzeug.security import check_password_hash
 import uuid
+import threading
+import time
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -12,16 +14,60 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'  # Ensure this is a secure key
 
+# Global variable to store the current user's ID based on the latest number plate
+current_user_id = None
+
+
 # Helper function to check if user is admin
 def is_admin():
     return 'user_id' in session and session.get('is_admin', False)
 
+def update_current_user():
+    global current_user_id
+    while True:
+        try:
+            with open('number_plates.txt', 'r') as f:
+                lines = f.readlines()
+                logger.debug(f"Number of lines in file: {len(lines)}")
+                if lines:
+                    last_plate = lines[-1].strip()
+                    logger.debug(f"Last number plate read: {last_plate}")
+                    if not last_plate:
+                        logger.warning("Last line is empty after stripping")
+                        current_user_id = None
+                        time.sleep(1)
+                        continue
+                    conn = sqlite3.connect('parking.db')
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "INSERT OR IGNORE INTO users (username, password_hash, is_admin) VALUES (?, ?, ?)",
+                        (last_plate, 'guest', 0)
+                    )
+                    cursor.execute("SELECT user_id FROM users WHERE username = ?", (last_plate,))
+                    user_row = cursor.fetchone()
+                    if user_row:
+                        current_user_id = user_row[0]
+                        logger.debug(f"Current user ID set to: {current_user_id}")
+                    else:
+                        logger.error(f"Failed to retrieve user_id for plate: {last_plate}")
+                        current_user_id = None
+                    conn.commit()
+                    conn.close()
+                else:
+                    logger.debug("No number plates found in file")
+                    current_user_id = None
+        except FileNotFoundError:
+            logger.error("number_plates.txt not found")
+            current_user_id = None
+        except Exception as e:
+            logger.error(f"Error updating current user: {e}")
+            current_user_id = None
+        time.sleep(1)
+    
+
 @app.route('/')
 def index():
     try:
-        # Ensure a user_id exists in the session (for guests)
-        if 'user_id' not in session:
-            session['user_id'] = str(uuid.uuid4())  # Assign a unique ID to guests
         conn = sqlite3.connect('parking.db')
         cursor = conn.cursor()
         cursor.execute(
@@ -30,7 +76,7 @@ def index():
         )
         spots = cursor.fetchall()
         conn.close()
-        user_id = session.get('user_id', None)
+        user_id = session.get('user_id', None)  # Only set for admin after login
         admin_status = is_admin()
         return render_template(
             'index.html', spots=spots, user_id=user_id, is_admin=admin_status
@@ -42,13 +88,14 @@ def index():
 @app.route('/get_user_id')
 def get_user_id():
     try:
-        user_id = session.get('user_id', str(uuid.uuid4()))
-        if 'user_id' not in session:
-            session['user_id'] = user_id
+        if 'is_admin' in session and session['is_admin']:
+            user_id = session['user_id']
+        else:
+            user_id = current_user_id
         return jsonify({'user_id': user_id})
     except Exception as e:
         logger.error(f"Error getting user ID: {e}")
-        return jsonify({'user_id': null}), 500
+        return jsonify({'user_id': None}), 500
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -111,7 +158,11 @@ def get_spots():
             } for row in cursor.fetchall()
         ]
         conn.close()
-        return jsonify(spots)
+        if 'is_admin' in session and session['is_admin']:
+            effective_user_id = session['user_id']
+        else:
+            effective_user_id = current_user_id
+        return jsonify({'spots': spots, 'effective_user_id': effective_user_id})
     except Exception as e:
         logger.error(f"Error getting spots: {e}")
         return jsonify({'error': 'Failed to retrieve spots'}), 500
@@ -119,7 +170,12 @@ def get_spots():
 @app.route('/update_spot', methods=['POST'])
 def update_spot():
     spot_id = request.form['spot_id']
-    user_id = session.get('user_id', str(uuid.uuid4()))
+    if 'is_admin' in session and session['is_admin']:
+        user_id = session['user_id']
+    else:
+        user_id = current_user_id
+    if not user_id:
+        return jsonify({'message': 'No user detected. Please ensure a number plate is registered.'}), 401
     try:
         conn = sqlite3.connect('parking.db')
         cursor = conn.cursor()
@@ -160,13 +216,15 @@ def update_spot():
 @app.route('/cancel_user_spot', methods=['POST'])
 def cancel_user_spot():
     spot_id = request.form['spot_id']
-    user_id = session.get('user_id', None)
+    if 'is_admin' in session and session['is_admin']:
+        user_id = session['user_id']
+    else:
+        user_id = current_user_id
     if not user_id:
-        return jsonify({'message': 'User not authenticated'}), 401
+        return jsonify({'message': 'No user detected. Please ensure a number plate is registered.'}), 401
     try:
         conn = sqlite3.connect('parking.db')
         cursor = conn.cursor()
-        # Verify the spot belongs to the user
         cursor.execute(
             "SELECT user_id FROM parking_spots WHERE spot_id = ? AND status = 'occupied'",
             (spot_id,)
@@ -191,7 +249,7 @@ def cancel_user_spot():
     except Exception as e:
         logger.error(f"Error cancelling spot {spot_id}: {e}")
         return jsonify({'message': 'Server error cancelling spot'}), 500
-
+    
 @app.route('/reset_spot', methods=['POST'])
 def reset_spot():
     if not is_admin():
@@ -294,6 +352,11 @@ def cancel_reservation():
     except Exception as e:
         logger.error(f"Error cancelling reservation for spot {spot_id}: {e}")
         return jsonify({'message': 'Server error cancelling reservation'}), 500
+
+# Start the background thread
+thread = threading.Thread(target=update_current_user, daemon=True)
+thread.start()
+
 
 if __name__ == '__main__':
     app.run(debug=True)
