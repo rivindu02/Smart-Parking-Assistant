@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parking Map</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            text-shadow: 2px 2px 10px rgba(0, 0, 0, 0.5);
+            margin-bottom: 20px;
+            background: linear-gradient(90deg, #00c6ff, #0072ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .parking-map {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: url('/static/parking_lot.jpg') no-repeat center/cover;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .slot {
+            position: absolute;
+            width: 70px;
+            height: 35px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            text-align: center;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            cursor: move;
+        }
+
+        .slot:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .available { background: linear-gradient(135deg, #34c759, #28a745); }
+        .occupied { background: linear-gradient(135deg, #ff4b5c, #d32f2f); }
+        .reserved { background: linear-gradient(135deg, #ffca28, #f57c00); }
+
+        .slot-number {
+            font-size: 1rem;
+            font-weight: 600;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Initial manual positions */
+        .slot-1 { left: 50px; top: 50px; }
+        .slot-2 { left: 150px; top: 50px; }
+        .slot-3 { left: 250px; top: 50px; }
+        .slot-4 { left: 350px; top: 50px; }
+        .slot-5 { left: 450px; top: 50px; }
+        .slot-6 { left: 50px; top: 150px; }
+        .slot-7 { left: 150px; top: 150px; }
+        .slot-8 { left: 250px; top: 150px; }
+        .slot-9 { left: 350px; top: 150px; }
+        .slot-10 { left: 450px; top: 150px; }
+        .slot-11 { left: 50px; top: 250px; }
+        .slot-12 { left: 150px; top: 250px; }
+        .slot-13 { left: 250px; top: 250px; }
+        .slot-14 { left: 350px; top: 250px; }
+        .slot-15 { left: 450px; top: 250px; }
+        .slot-16 { left: 50px; top: 350px; }
+        .slot-17 { left: 150px; top: 350px; }
+        .slot-18 { left: 250px; top: 350px; }
+        .slot-19 { left: 350px; top: 350px; }
+        .slot-20 { left: 450px; top: 350px; }
+
+        .edit-button, .reset-button {
+            position: absolute;
+            top: 10px;
+            padding: 8px 16px;
+            background: linear-gradient(90deg, #00c6ff, #0072ff);
+            border: none;
+            border-radius: 5px;
+            color: #fff;
+            font-size: 0.9rem;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            transition: background 0.3s ease;
+        }
+
+        .edit-button {
+            right: 80px; /* Adjusted to make room for reset button */
+        }
+
+        .reset-button {
+            right: 10px;
+            background: linear-gradient(90deg, #ffca28, #f57c00);
+        }
+
+        .edit-button:hover {
+            background: linear-gradient(90deg, #0072ff, #00c6ff);
+        }
+
+        .reset-button:hover {
+            background: linear-gradient(90deg, #f57c00, #ffca28);
+        }
+
+        .edit-button.active {
+            background: linear-gradient(90deg, #ff4b5c, #d32f2f);
+        }
+
+        @media (max-width: 600px) {
+            h1 { font-size: 1.8rem; }
+            .parking-map { width: 100%; height: 300px; }
+            .slot { width: 50px; height: 25px; }
+            .slot-number { font-size: 0.8rem; }
+            .edit-button, .reset-button { font-size: 0.8rem; padding: 6px 12px; }
+            .edit-button { right: 70px; }
+            .reset-button { right: 10px; }
+            .slot-1 { left: 10px; top: 20px; }
+            .slot-2 { left: 70px; top: 20px; }
+            .slot-3 { left: 130px; top: 20px; }
+            .slot-4 { left: 190px; top: 20px; }
+            .slot-5 { left: 250px; top: 20px; }
+            .slot-6 { left: 10px; top: 70px; }
+            .slot-7 { left: 70px; top: 70px; }
+            .slot-8 { left: 130px; top: 70px; }
+            .slot-9 { left: 190px; top: 70px; }
+            .slot-10 { left: 250px; top: 70px; }
+            .slot-11 { left: 10px; top: 120px; }
+            .slot-12 { left: 70px; top: 120px; }
+            .slot-13 { left: 130px; top: 120px; }
+            .slot-14 { left: 190px; top: 120px; }
+            .slot-15 { left: 250px; top: 120px; }
+            .slot-16 { left: 10px; top: 170px; }
+            .slot-17 { left: 70px; top: 170px; }
+            .slot-18 { left: 130px; top: 170px; }
+            .slot-19 { left: 190px; top: 170px; }
+            .slot-20 { left: 250px; top: 170px; }
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <h1>Parking Lot Map</h1>
+    <div class="parking-map">
+        <button class="edit-button" id="editButton">Edit Layout</button>
+        <button class="reset-button" id="resetButton">Reset</button>
+        {% for spot in spots %}
+            <div class="slot {{ 'available' if spot[1] == 'available' else 'occupied' if spot[1] == 'occupied' else 'reserved' }} slot-{{ spot[0] }}"
+                 data-spot-id="{{ spot[0] }}">
+                <div class="slot-number">Spot {{ spot[0] }}</div>
+            </div>
+        {% endfor %}
+    </div>
+
+    <script>
+        async function updateMap() {
+            try {
+                const response = await fetch('/get_spots');
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const data = await response.json();
+                const spots = data.spots;
+                console.log('Map received spots:', spots);
+                const parkingMap = document.querySelector('.parking-map');
+
+                spots.forEach(spot => {
+                    let slotElement = parkingMap.querySelector(`.slot-${spot.spot_id}`);
+                    if (!slotElement) {
+                        slotElement = document.createElement('div');
+                        slotElement.className = `slot slot-${spot.spot_id}`;
+                        slotElement.dataset.spotId = spot.spot_id;
+                        slotElement.innerHTML = `<div class="slot-number">Spot ${spot.spot_id}</div>`;
+                        parkingMap.appendChild(slotElement);
+                    }
+                    slotElement.className = `slot ${spot.status} slot-${spot.spot_id}`;
+                    const savedPos = JSON.parse(localStorage.getItem(`slot-${spot.spot_id}`));
+                    if (savedPos) {
+                        slotElement.style.left = `${savedPos.left}px`;
+                        slotElement.style.top = `${savedPos.top}px`;
+                    }
+                });
+            } catch (error) {
+                console.error('Error updating map:', error);
+            }
+        }
+
+        function makeDraggable() {
+            const slots = document.querySelectorAll('.slot');
+            let isDragging = false;
+            let currentSlot = null;
+            let offsetX, offsetY;
+
+            slots.forEach(slot => {
+                slot.addEventListener('mousedown', (e) => {
+                    if (!document.getElementById('editButton').classList.contains('active')) return;
+                    isDragging = true;
+                    currentSlot = slot;
+                    offsetX = e.clientX - parseInt(slot.style.left || slot.getBoundingClientRect().left);
+                    offsetY = e.clientY - parseInt(slot.style.top || slot.getBoundingClientRect().top);
+                    slot.style.zIndex = 1000;
+                });
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging || !currentSlot) return;
+                const mapRect = document.querySelector('.parking-map').getBoundingClientRect();
+                let newLeft = e.clientX - offsetX - mapRect.left;
+                let newTop = e.clientY - offsetY - mapRect.top;
+
+                newLeft = Math.max(0, Math.min(newLeft, 800 - currentSlot.offsetWidth));
+                newTop = Math.max(0, Math.min(newTop, 500 - currentSlot.offsetHeight));
+
+                currentSlot.style.left = `${newLeft}px`;
+                currentSlot.style.top = `${newTop}px`;
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (isDragging && currentSlot) {
+                    isDragging = false;
+                    currentSlot.style.zIndex = '';
+                    const spotId = currentSlot.dataset.spotId;
+                    localStorage.setItem(`slot-${spotId}`, JSON.stringify({
+                        left: parseInt(currentSlot.style.left),
+                        top: parseInt(currentSlot.style.top)
+                    }));
+                    currentSlot = null;
+                }
+            });
+        }
+
+        function resetSlots() {
+            const slots = document.querySelectorAll('.slot');
+            slots.forEach(slot => {
+                const spotId = slot.dataset.spotId;
+                localStorage.removeItem(`slot-${spotId}`);
+                slot.style.left = '';
+                slot.style.top = '';
+            });
+            updateMap(); // Refresh to apply default positions
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateMap();
+            setInterval(updateMap, 5000);
+            makeDraggable();
+
+            const editButton = document.getElementById('editButton');
+            editButton.addEventListener('click', () => {
+                editButton.classList.toggle('active');
+                editButton.textContent = editButton.classList.contains('active') ? 'Save Layout' : 'Edit Layout';
+            });
+
+            const resetButton = document.getElementById('resetButton');
+            resetButton.addEventListener('click', () => {
+                if (confirm('Reset all slots to default positions?')) {
+                    resetSlots();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

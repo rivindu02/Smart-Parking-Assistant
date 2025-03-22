@@ -28,12 +28,9 @@ def update_current_user():
         try:
             with open('number_plates.txt', 'r') as f:
                 lines = f.readlines()
-                logger.debug(f"Number of lines in file: {len(lines)}")
                 if lines:
                     last_plate = lines[-1].strip()
-                    logger.debug(f"Last number plate read: {last_plate}")
                     if not last_plate:
-                        logger.warning("Last line is empty after stripping")
                         current_user_id = None
                         time.sleep(1)
                         continue
@@ -47,14 +44,11 @@ def update_current_user():
                     user_row = cursor.fetchone()
                     if user_row:
                         current_user_id = user_row[0]
-                        logger.debug(f"Current user ID set to: {current_user_id}")
                     else:
-                        logger.error(f"Failed to retrieve user_id for plate: {last_plate}")
                         current_user_id = None
                     conn.commit()
                     conn.close()
                 else:
-                    logger.debug("No number plates found in file")
                     current_user_id = None
         except FileNotFoundError:
             logger.error("number_plates.txt not found")
@@ -71,12 +65,11 @@ def index():
         conn = sqlite3.connect('parking.db')
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT spot_id, status, user_plate, last_updated, latitude, longitude, "
-            "user_id FROM parking_spots"
+            "SELECT spot_id, status, user_plate, last_updated, latitude, longitude, user_id FROM parking_spots"
         )
         spots = cursor.fetchall()
         conn.close()
-        user_id = session.get('user_id', None)  # Only set for admin after login
+        user_id = session.get('user_id', None)
         admin_status = is_admin()
         return render_template(
             'index.html', spots=spots, user_id=user_id, is_admin=admin_status
@@ -148,38 +141,48 @@ def get_spots():
         conn = sqlite3.connect('parking.db')
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT spot_id, status, last_updated, latitude, longitude, user_id "
+            "SELECT spot_id, status, user_plate, last_updated, latitude, longitude, user_id "
             "FROM parking_spots"
         )
         spots = [
             {
-                'spot_id': row[0], 'status': row[1], 'last_updated': row[2],
-                'latitude': row[3], 'longitude': row[4], 'user_id': row[5]
+                'spot_id': row[0], 'status': row[1], 'user_plate': row[2],
+                'last_updated': row[3], 'latitude': row[4], 'longitude': row[5],
+                'user_id': row[6]
             } for row in cursor.fetchall()
         ]
         conn.close()
-        if 'is_admin' in session and session['is_admin']:
-            effective_user_id = session['user_id']
-        else:
-            effective_user_id = current_user_id
+        effective_user_id = session.get('user_id') if is_admin() else current_user_id
         return jsonify({'spots': spots, 'effective_user_id': effective_user_id})
     except Exception as e:
         logger.error(f"Error getting spots: {e}")
         return jsonify({'error': 'Failed to retrieve spots'}), 500
-
+    
 @app.route('/update_spot', methods=['POST'])
 def update_spot():
     spot_id = request.form['spot_id']
-    if 'is_admin' in session and session['is_admin']:
-        user_id = session['user_id']
-    else:
-        user_id = current_user_id
+    user_id = session.get('user_id') if is_admin() else current_user_id
+    logger.debug(f"Attempting to update spot {spot_id} for user_id {user_id}")
+    
     if not user_id:
+        logger.warning("No user_id detected. Check number_plates.txt or session.")
         return jsonify({'message': 'No user detected. Please ensure a number plate is registered.'}), 401
+    
+    conn = sqlite3.connect('parking.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT username FROM users WHERE user_id = ?", (user_id,))
+    user_row = cursor.fetchone()
+    user_plate = user_row[0] if user_row else None
+    logger.debug(f"Retrieved user_plate: {user_plate} for user_id: {user_id}")
+    conn.close()
+    
+    if not user_plate:
+        logger.warning(f"No user_plate found for user_id {user_id}")
+        return jsonify({'message': 'User plate not found. Please register a valid plate.'}), 401
+    
     try:
         conn = sqlite3.connect('parking.db')
         cursor = conn.cursor()
-        # Check if the user already has a spot
         cursor.execute(
             "SELECT spot_id FROM parking_spots WHERE user_id = ? AND status = 'occupied'",
             (user_id,)
@@ -187,22 +190,22 @@ def update_spot():
         existing_spot = cursor.fetchone()
         if existing_spot:
             conn.close()
-            message = f'You already have Spot {existing_spot[0]} selected. Cancel it first to select a new spot.'
+            message = f'You already have Spot {existing_spot[0]} selected. Cancel it first.'
             logger.warning(message)
             return jsonify({'message': message})
 
-        # Proceed with selecting the new spot
         cursor.execute("SELECT status, user_id FROM parking_spots WHERE spot_id = ?",
                       (spot_id,))
         status, spot_user_id = cursor.fetchone() or (None, None)
+        logger.debug(f"Spot {spot_id} status: {status}, current user_id: {spot_user_id}")
         if status == 'available' and spot_user_id is None:
             cursor.execute(
-                "UPDATE parking_spots SET status = 'occupied', user_id = ?, "
+                "UPDATE parking_spots SET status = 'occupied', user_id = ?, user_plate = ?, "
                 "last_updated = ? WHERE spot_id = ?",
-                (user_id, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), spot_id)
+                (user_id, user_plate, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), spot_id)
             )
             conn.commit()
-            message = f'Spot {spot_id} marked as occupied'
+            message = f'Spot {spot_id} marked as occupied by {user_plate}'
             logger.debug(message)
         else:
             message = f'Spot {spot_id} is already occupied or reserved'
@@ -213,15 +216,29 @@ def update_spot():
         logger.error(f"Error updating spot {spot_id}: {e}")
         return jsonify({'message': 'Server error updating spot'}), 500
 
+@app.route('/map')
+def map_view():
+    try:
+        conn = sqlite3.connect('parking.db')
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT spot_id, status, user_plate, last_updated, latitude, longitude, user_id FROM parking_spots"
+        )
+        spots = cursor.fetchall()
+        conn.close()
+        return render_template('map.html', spots=spots)
+    except Exception as e:
+        logger.error(f"Error rendering map: {e}")
+        return "An error occurred.", 500
+
 @app.route('/cancel_user_spot', methods=['POST'])
 def cancel_user_spot():
     spot_id = request.form['spot_id']
-    if 'is_admin' in session and session['is_admin']:
-        user_id = session['user_id']
-    else:
-        user_id = current_user_id
+    user_id = session.get('user_id') if is_admin() else current_user_id
     if not user_id:
+        logger.warning("No user_id detected for cancel request.")
         return jsonify({'message': 'No user detected. Please ensure a number plate is registered.'}), 401
+    
     try:
         conn = sqlite3.connect('parking.db')
         cursor = conn.cursor()
@@ -233,17 +250,18 @@ def cancel_user_spot():
         if not spot or spot[0] != user_id:
             conn.close()
             message = 'You can only cancel your own spot'
-            logger.warning(message)
+            logger.warning(f"User {user_id} attempted to cancel spot {spot_id} not owned by them.")
             return jsonify({'message': message})
 
+        # Clear status, user_id, and user_plate
         cursor.execute(
-            "UPDATE parking_spots SET status = 'available', user_id = NULL, "
+            "UPDATE parking_spots SET status = 'available', user_id = NULL, user_plate = NULL, "
             "last_updated = ? WHERE spot_id = ?",
             (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), spot_id)
         )
         conn.commit()
         conn.close()
-        message = f'Spot {spot_id} cancelled by user'
+        message = f'Spot {spot_id} cancelled by user {user_id}'
         logger.debug(message)
         return jsonify({'message': message})
     except Exception as e:
@@ -274,6 +292,75 @@ def reset_spot():
 
 @app.route('/reserve_spot', methods=['POST'])
 def reserve_spot():
+    spot_id = request.form['spot_id']
+    start_time = request.form['start_time']
+    end_time = request.form['end_time']
+    user_plate = request.form['user_plate']  # New field
+    user_id = session.get('user_id', None) or current_user_id
+    
+    if not user_plate:
+        return jsonify({'message': 'Number plate is required for reservation'}), 400
+
+    try:
+        conn = sqlite3.connect('parking.db')
+        cursor = conn.cursor()
+        
+        # Ensure the user exists or create a new user with the plate
+        cursor.execute(
+            "INSERT OR IGNORE INTO users (username, password_hash, is_admin) VALUES (?, ?, ?)",
+            (user_plate, 'guest', 0)
+        )
+        cursor.execute("SELECT user_id FROM users WHERE username = ?", (user_plate,))
+        user_id = cursor.fetchone()[0]
+
+        # Check if the user already has a reserved spot
+        cursor.execute(
+            "SELECT spot_id FROM parking_spots WHERE user_id = ? AND status = 'reserved'",
+            (user_id,)
+        )
+        existing_spot = cursor.fetchone()
+        if existing_spot:
+            conn.close()
+            message = f'You already have Spot {existing_spot[0]} reserved. Cancel it first to reserve a new spot.'
+            logger.warning(message)
+            return jsonify({'message': message})
+
+        cursor.execute("SELECT status, user_id FROM parking_spots WHERE spot_id = ?",
+                      (spot_id,))
+        status, spot_user_id = cursor.fetchone() or (None, None)
+        if status == 'available' and spot_user_id is None:
+            cursor.execute(
+                "SELECT * FROM reservations WHERE spot_id = ? AND "
+                "((start_time <= ? AND end_time >= ?) OR "
+                "(start_time <= ? AND end_time >= ?))",
+                (spot_id, end_time, start_time, start_time, end_time)
+            )
+            overlapping = cursor.fetchone()
+            if not overlapping:
+                cursor.execute(
+                    "UPDATE parking_spots SET status = 'reserved', user_id = ?, user_plate = ?, "
+                    "last_updated = ? WHERE spot_id = ?",
+                    (user_id, user_plate, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), spot_id)
+                )
+                cursor.execute(
+                    "INSERT INTO reservations (spot_id, user_id, start_time, end_time) "
+                    "VALUES (?, ?, ?, ?)",
+                    (spot_id, user_id, start_time, end_time)
+                )
+                conn.commit()
+                message = f'Spot {spot_id} reserved by plate {user_plate} from {start_time} to {end_time}'
+                logger.debug(message)
+            else:
+                message = f'Spot {spot_id} is already reserved during this time'
+                logger.warning(message)
+        else:
+            message = f'Spot {spot_id} is not available for reservation'
+            logger.warning(message)
+        conn.close()
+        return jsonify({'message': message})
+    except Exception as e:
+        logger.error(f"Error reserving spot {spot_id}: {e}")
+        return jsonify({'message': 'Server error reserving spot'}), 500
     spot_id = request.form['spot_id']
     start_time = request.form['start_time']
     end_time = request.form['end_time']
