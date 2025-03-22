@@ -399,6 +399,7 @@
             {% else %}
                 <div id="userInfo">Guest User</div>
             {% endif %}
+            <button id="reserveButton" class="reserve-button">Reserve a Spot</button>
             <button id="loginButton">Admin Login</button>
         </div>
     </header>
@@ -411,6 +412,7 @@
                  data-user-id="{{ spot[6] if spot[6] else 'null' }}">
                 <div>Spot {{ spot[0] }}</div>
                 <div>{{ spot[1] | capitalize }}</div>
+                {% if spot[2] %}<div>Plate: {{ spot[2] if spot[2] else 'N/A' }}</div>{% endif %}
                 <div class="last-updated">Last Updated: {{ spot[3] if spot[3] else 'Never' }}</div>
                 {% if spot[1] == 'available' %}
                     <button onclick="selectSpot({{ spot[0] }})">Select</button>
@@ -432,6 +434,8 @@
         <h2>Reserve a Spot</h2>
         <label for="spotId">Spot Number:</label>
         <input type="number" id="spotId" min="1" max="20" required>
+        <label for="userPlate">Number Plate:</label>
+        <input type="text" id="userPlate" placeholder="ABC123" required>
         <label for="startTime">Start Time (YYYY-MM-DD HH:MM):</label>
         <input type="text" id="startTime" placeholder="2025-03-05 14:30" required>
         <label for="endTime">End Time (YYYY-MM-DD HH:MM):</label>
@@ -487,11 +491,11 @@
                 const data = await response.json();
                 const spots = data.spots;
                 const currentUserId = data.effective_user_id;
-                console.log('Current user ID:', currentUserId); // Debug current user
+                console.log(`Current user ID: ${currentUserId}`);
                 const parkingMap = document.getElementById('parkingMap');
                 const isAdmin = {{ is_admin|tojson }};
                 let userHasSpot = spots.some(spot => spot.user_id === currentUserId && spot.status === 'occupied');
-                
+
                 parkingMap.innerHTML = '';
                 spots.forEach(spot => {
                     const spotElement = document.createElement('div');
@@ -503,15 +507,12 @@
                     spotElement.innerHTML = `
                         <div>Spot ${spot.spot_id}</div>
                         <div>${spot.status.charAt(0).toUpperCase() + spot.status.slice(1)}</div>
+                        ${spot.user_plate ? `<div>Plate: ${spot.user_plate}</div>` : ''}
                         <div class="last-updated">Last Updated: ${spot.last_updated || 'Never'}</div>
                     `;
-                    
-                    if (spot.status === 'available' && !userHasSpot && currentUserId) {
-                        const selectButton = document.createElement('button');
-                        selectButton.textContent = 'Select';
-                        selectButton.onclick = () => selectSpot(spot.spot_id);
-                        spotElement.appendChild(selectButton);
-                    } else if (spot.status === 'occupied' && spot.user_id === currentUserId) {
+
+                    // User-owned spot (admin or regular user)
+                    if (spot.status === 'occupied' && spot.user_id === currentUserId) {
                         const cancelButton = document.createElement('button');
                         cancelButton.textContent = 'Cancel';
                         cancelButton.onclick = () => cancelUserSpot(spot.spot_id);
@@ -522,7 +523,15 @@
                         goToButton.onclick = () => goToSpot(spot.spot_id);
                         spotElement.appendChild(goToButton);
                     }
-                    if (isAdmin) {
+                    // Available spot
+                    else if (spot.status === 'available' && !userHasSpot && currentUserId) {
+                        const selectButton = document.createElement('button');
+                        selectButton.textContent = 'Select';
+                        selectButton.onclick = () => selectSpot(spot.spot_id);
+                        spotElement.appendChild(selectButton);
+                    }
+                    // Admin-specific actions for non-owned occupied or reserved spots
+                    else if (isAdmin) {
                         if (spot.status === 'occupied') {
                             const resetButton = document.createElement('button');
                             resetButton.textContent = 'Reset';
@@ -549,7 +558,7 @@
                 });
             } catch (error) {
                 console.error('Error updating spots:', error);
-                alert('Failed to load parking spots. Check the console for details.');
+                alert('Failed to load spots. Check console.');
             }
         }
 
@@ -619,175 +628,161 @@
 
         // Event listeners
         document.addEventListener('DOMContentLoaded', () => {
-            updateSpots();
-            setInterval(updateSpots, 1000);
+        updateSpots();
+        setInterval(updateSpots, 1000);
 
-            const loginButton = document.getElementById('loginButton');
-            console.log('Login button element:', loginButton);
-            if (loginButton) {
-                loginButton.addEventListener('click', () => {
-                    console.log('Admin Login button clicked');
-                    showLoginModal();
-                });
-            } else {
-                console.error('Login button element not found in DOM');
-            }
+        const loginButton = document.getElementById('loginButton');
+        if (loginButton) loginButton.addEventListener('click', showLoginModal);
 
-            const reserveButton = document.createElement('button');
-            reserveButton.textContent = 'Reserve a Spot';
-            reserveButton.className = 'reserve-button';
-            reserveButton.addEventListener('click', () => {
-                console.log('Reserve a Spot button clicked');
-                showReservationForm();
-                console.log('Attempting to show reservation form');
-            });
-            document.getElementById('parkingMap').parentNode.appendChild(reserveButton);
+        const reserveButton = document.getElementById('reserveButton');
+        if (reserveButton) reserveButton.addEventListener('click', showReservationForm);
 
-            const loginForm = document.getElementById('loginForm');
-            if (loginForm) {
-                loginForm.addEventListener('submit', async (e) => {
-                    e.preventDefault();
-                    console.log('Login form submitted');
-                    const username = document.getElementById('username').value;
-                    const password = document.getElementById('password').value;
-                    try {
-                        const response = await fetch('/login', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                            body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`
-                        });
-                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                        const data = await response.json();
-                        if (data.success) {
-                            console.log('Login successful');
-                            hideLoginModal();
-                            location.reload();
-                        } else {
-                            alert(data.message);
-                            console.log('Login failed: ' + data.message);
-                        }
-                    } catch (error) {
-                        console.error('Error during login:', error);
-                        alert('Client-side error during login. Check the console.');
+        const loginForm = document.getElementById('loginForm');
+        if (loginForm) {
+            loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+                try {
+                    const response = await fetch('/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        hideLoginModal();
+                        location.reload();
+                    } else {
+                        alert(data.message);
                     }
-                });
-            } else {
-                console.error('Login form element not found in DOM');
-            }
-        });
-
-        function selectSpot(spotId) {
-            fetch('/update_spot', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `spot_id=${spotId}`
-            })
-            .then(response => response.json())
-            .then(data => {
-                alert(data.message);
-                if (data.message.includes('occupied')) updateSpots();
-            })
-            .catch(error => {
-                console.error('Error selecting spot:', error);
-            });
-        }
-
-        function resetSpot(spotId) {
-            fetch('/reset_spot', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `spot_id=${spotId}`
-            })
-            .then(response => response.json())
-            .then(data => {
-                alert(data.message);
-                if (data.message.includes('available')) updateSpots();
-            })
-            .catch(error => {
-                console.error('Error resetting spot:', error);
-            });
-        }
-
-        function cancelUserSpot(spotId) {
-            fetch('/cancel_user_spot', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `spot_id=${spotId}`
-            })
-            .then(response => response.json())
-            .then(data => {
-                alert(data.message);
-                if (data.message.includes('cancelled')) updateSpots();
-            })
-            .catch(error => {
-                console.error('Error cancelling spot:', error);
-            });
-        }
-
-        function reserveSpot() {
-            const spotId = document.getElementById('spotId').value;
-            const startTime = document.getElementById('startTime').value;
-            const endTime = document.getElementById('endTime').value;
-
-            fetch('/reserve_spot', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `spot_id=${spotId}&start_time=${startTime}&end_time=${endTime}`
-            })
-            .then(response => response.json())
-            .then(data => {
-                alert(data.message);
-                if (data.message.includes('reserved')) {
-                    updateSpots();
-                    hideReservationForm();
+                } catch (error) {
+                    console.error('Error during login:', error);
+                    alert('Login error. Check console.');
                 }
-            })
-            .catch(error => {
-                console.error('Error reserving spot:', error);
             });
         }
+    });
 
-        function cancelReservation(spotId) {
-            fetch('/cancel_reservation', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `spot_id=${spotId}`
-            })
-            .then(response => response.json())
-            .then(data => {
-                alert(data.message);
-                if (data.message.includes('cancelled')) updateSpots();
-            })
-            .catch(error => {
-                console.error('Error cancelling reservation:', error);
-            });
-        }
+    function selectSpot(spotId) {
+        console.log(`Attempting to select spot ${spotId}`);
+        fetch('/update_spot', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `spot_id=${spotId}`
+        })
+        .then(response => {
+            console.log(`Response status: ${response.status}`);
+            return response.json();
+        })
+        .then(data => {
+            console.log('Response data:', data);
+            alert(data.message);
+            if (data.message.includes('occupied')) updateSpots();
+        })
+        .catch(error => {
+            console.error('Error selecting spot:', error);
+            alert('Failed to select spot. Check console.');
+        });
+    }
 
-        function goToSpot(spotId) {
-            const spotElement = document.querySelector(`[data-spot-id="${spotId}"]`);
-            const latitude = spotElement.dataset.latitude;
-            const longitude = spotElement.dataset.longitude;
+    function resetSpot(spotId) {
+        fetch('/reset_spot', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `spot_id=${spotId}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert(data.message);
+            if (data.message.includes('available')) updateSpots();
+        })
+        .catch(error => {
+            console.error('Error resetting spot:', error);
+        });
+    }
 
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                        const userLat = position.coords.latitude;
-                        const userLon = position.coords.longitude;
-                        const url = `https://www.google.com/maps/dir/?api=1&origin=${userLat},${userLon}&destination=${latitude},${longitude}&travelmode=driving`;
-                        window.open(url, '_blank');
-                    },
-                    (error) => {
-                        alert('Unable to get your location. Using default location.');
-                        const defaultUrl = `https://www.google.com/maps/dir/?api=1&origin=37.7749,-122.4194&destination=${latitude},${longitude}&travelmode=driving`;
-                        window.open(defaultUrl, '_blank');
-                    }
-                );
-            } else {
-                alert('Geolocation not supported. Using default location.');
-                const defaultUrl = `https://www.google.com/maps/dir/?api=1&origin=37.7749,-122.4194&destination=${latitude},${longitude}&travelmode=driving`;
-                window.open(defaultUrl, '_blank');
+    function cancelUserSpot(spotId) {
+        fetch('/cancel_user_spot', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `spot_id=${spotId}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert(data.message);
+            if (data.message.includes('cancelled')) updateSpots();
+        })
+        .catch(error => {
+            console.error('Error cancelling spot:', error);
+        });
+    }
+
+    function reserveSpot() {
+        const spotId = document.getElementById('spotId').value;
+        const userPlate = document.getElementById('userPlate').value;
+        const startTime = document.getElementById('startTime').value;
+        const endTime = document.getElementById('endTime').value;
+
+        fetch('/reserve_spot', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `spot_id=${spotId}&user_plate=${encodeURIComponent(userPlate)}&start_time=${startTime}&end_time=${endTime}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert(data.message);
+            if (data.message.includes('reserved')) {
+                updateSpots();
+                hideReservationForm();
             }
+        })
+        .catch(error => {
+            console.error('Error reserving spot:', error);
+        });
+    }
+
+    function cancelReservation(spotId) {
+        fetch('/cancel_reservation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `spot_id=${spotId}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert(data.message);
+            if (data.message.includes('cancelled')) updateSpots();
+        })
+        .catch(error => {
+            console.error('Error cancelling reservation:', error);
+        });
+    }
+
+    function goToSpot(spotId) {
+        const spotElement = document.querySelector(`[data-spot-id="${spotId}"]`);
+        const latitude = spotElement.dataset.latitude;
+        const longitude = spotElement.dataset.longitude;
+
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const userLat = position.coords.latitude;
+                    const userLon = position.coords.longitude;
+                    const url = `https://www.google.com/maps/dir/?api=1&origin=${userLat},${userLon}&destination=${latitude},${longitude}&travelmode=driving`;
+                    window.open(url, '_blank');
+                },
+                (error) => {
+                    alert('Unable to get your location. Using default location.');
+                    const defaultUrl = `https://www.google.com/maps/dir/?api=1&origin=37.7749,-122.4194&destination=${latitude},${longitude}&travelmode=driving`;
+                    window.open(defaultUrl, '_blank');
+                }
+            );
+        } else {
+            alert('Geolocation not supported. Using default location.');
+            const defaultUrl = `https://www.google.com/maps/dir/?api=1&origin=37.7749,-122.4194&destination=${latitude},${longitude}&travelmode=driving`;
+            window.open(defaultUrl, '_blank');
         }
+    }
     </script>
 </body>
 </html>

@@ -5,7 +5,7 @@ from werkzeug.security import generate_password_hash
 conn = sqlite3.connect('parking.db')
 cursor = conn.cursor()
 
-# Create users table with role
+# Create tables (unchanged)
 cursor.execute('''CREATE TABLE IF NOT EXISTS users (
                   user_id INTEGER PRIMARY KEY AUTOINCREMENT,
                   username TEXT UNIQUE NOT NULL,
@@ -13,7 +13,6 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS users (
                   is_admin BOOLEAN DEFAULT 0
                   )''')
 
-# Create parking_spots table with user_id
 cursor.execute('''CREATE TABLE IF NOT EXISTS parking_spots (
                   spot_id INTEGER PRIMARY KEY,
                   status TEXT NOT NULL,
@@ -25,7 +24,6 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS parking_spots (
                   FOREIGN KEY (user_id) REFERENCES users(user_id)
                   )''')
 
-# Create reservations table with user_id
 cursor.execute('''CREATE TABLE IF NOT EXISTS reservations (
                   reservation_id INTEGER PRIMARY KEY AUTOINCREMENT,
                   spot_id INTEGER,
@@ -36,21 +34,37 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS reservations (
                   FOREIGN KEY (user_id) REFERENCES users(user_id)
                   )''')
 
-# Clear existing users and insert only admin
-cursor.execute("DELETE FROM users")
-cursor.execute("INSERT INTO users (user_id, username, password_hash, is_admin) VALUES (?, ?, ?, ?)", 
-               (1, 'admin', generate_password_hash('sliot'), 1))  # Admin user, user_id = 1
+# Insert admin user
+cursor.execute("INSERT OR IGNORE INTO users (user_id, username, password_hash, is_admin) VALUES (?, ?, ?, ?)", 
+               (1, 'admin', generate_password_hash('sliot'), 1))
 
-# Insert 20 sample spots with placeholder coordinates and no user_id (available)
-# Example coordinates for a parking lot: 37.4419, -122.1430 (Palo Alto area)
+# New coordinates for a 50x40m parking lot near Palo Alto (base: 37.4419, -122.1430)
+# 0.000009 ~ 1 meter in latitude, 0.000012 ~ 1 meter in longitude (approx.)
 spots = [
-    (i, 'available', None, None, 37.4419 + (i * 0.0001), -122.1430 + (i * 0.0001), None)
-    for i in range(1, 21)
+    (1, 'available', None, None, 37.441900, -122.143000 ,None),  # Top-left corner
+    (2, 'available', None, None, 37.441900, -122.142960,None),
+    (3, 'available', None, None, 37.441900, -122.142920,None),
+    (4, 'available', None, None, 37.441900, -122.142880,None),
+    (5, 'available', None, None, 37.441900, -122.142840,None),
+    (6, 'available', None, None, 37.441855, -122.143000,None),  # Second row
+    (7, 'available', None, None, 37.441855, -122.142960,None),
+    (8, 'available', None, None, 37.441855, -122.142920,None),
+    (9, 'available', None, None, 37.441855, -122.142880,None),
+    (10, 'available', None, None, 37.441855, -122.142840,None),
+    (11, 'available', None, None, 37.441810, -122.143000,None),  # Third row
+    (12, 'available', None, None, 37.441810, -122.142960,None),
+    (13, 'available', None, None, 37.441810, -122.142920,None),
+    (14, 'available', None, None, 37.441810, -122.142880,None),
+    (15, 'available', None, None, 37.441810, -122.142840,None),
+    (16, 'available', None, None, 37.441765, -122.143000,None),  # Fourth row
+    (17, 'available', None, None, 37.441765, -122.142960,None),
+    (18, 'available', None, None, 37.441765, -122.142920,None),
+    (19, 'available', None, None, 37.441765, -122.142880,None),
+    (20, 'available', None, None, 37.441765, -122.142840,None),
 ]
 cursor.executemany("INSERT OR IGNORE INTO parking_spots (spot_id, status, user_plate, last_updated, latitude, longitude, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)", spots)
 
-# Save changes and close
 conn.commit()
 conn.close()
 
-print("Database initialized with admin (user_id=1) and 20 parking spots.")
+print("Database initialized with admin (user_id=1) and 20 parking spots with realistic coordinates.")
