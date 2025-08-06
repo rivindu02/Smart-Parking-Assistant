@@ -62,7 +62,7 @@ Meet the amazing team behind Smart Parking Assistant!
 ## 🖼️ Project Design
 
 Get a closer look at our design and workflow on Canva:  
-[Smart Parking Assistant Canva Design](https://www.canva.com/design/DAGibMjpzD4/lB4wss8P-o7cLHdYibcBrw/edit?utm_content=DAGibMjpzD4&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton)
+[Smart Parking Assistant Canva Design](https://www.canva.com/design/DAGibMjpzD4/2cfRJGFFAx693ZhZMTfGVg/view?utm_content=DAGibMjpzD4&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=hdf132acc69)
 
 ---
 
