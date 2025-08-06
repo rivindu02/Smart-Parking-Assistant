@@ -51,20 +51,13 @@ Smart Parking Assistant provides a platform for smart, real-time parking managem
 
 ---
 
-## 👨‍💻 Team
-
-Meet the amazing team behind Smart Parking Assistant!
-
-![Our Team](team.jpg)
-
----
-
 ## 🖼️ Project Design
 
 Get a closer look at our design and workflow on Canva:  
 [Smart Parking Assistant Canva Design](https://www.canva.com/design/DAGibMjpzD4/2cfRJGFFAx693ZhZMTfGVg/view?utm_content=DAGibMjpzD4&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=hdf132acc69)
 
 ---
+
 
 ## 🚀 Getting Started
 
@@ -80,6 +73,13 @@ Get a closer look at our design and workflow on Canva:
    # Example command
    python main.py
    ```
+---
+
+## 👨‍💻 Team
+
+Meet the amazing team behind Smart Parking Assistant!
+
+![Our Team](team.jpg)
 
 ---
 
