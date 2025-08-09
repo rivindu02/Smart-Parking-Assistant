@@ -67,7 +67,6 @@ parking.db
 number_plates.txt
 *.mp4
 *.pptx
-*.jpg
 *.png
 
 # Ignore static and media files (if needed)
