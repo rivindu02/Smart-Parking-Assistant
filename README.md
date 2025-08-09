@@ -44,11 +44,15 @@ Smart Parking Assistant is a modern solution to urban parking congestion, using 
 ---
 
 
+
 ## UI Overview
 - Modern dashboard with real-time parking map
 - Admin and guest flows
 - Reservation and login modals
 - Draggable/editable parking slots
+
+See the full design and workflow on Canva:  
+[Smart Parking Assistant Canva Design](https://www.canva.com/design/DAGibMjpzD4/2cfRJGFFAx693ZhZMTfGVg/view?utm_content=DAGibMjpzD4&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=hdf132acc69)
 
 ---
 
